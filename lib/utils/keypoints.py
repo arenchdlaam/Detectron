@@ -134,9 +134,10 @@ def heatmaps_to_keypoints(maps, rois):
             roi_map_height = heights_ceil[i]
         width_correction = widths[i] / roi_map_width
         height_correction = heights[i] / roi_map_height
-        roi_map = cv2.resize(
-            maps[i], (roi_map_width, roi_map_height),
-            interpolation=cv2.INTER_CUBIC)
+#         roi_map = cv2.resize(
+#             maps[i], (roi_map_width, roi_map_height),
+#             interpolation=cv2.INTER_CUBIC)
+        roi_map = maps[i].copy()
         # Bring back to CHW
         roi_map = np.transpose(roi_map, [2, 0, 1])
         roi_map_probs = scores_to_probs(roi_map.copy())
@@ -147,8 +148,8 @@ def heatmaps_to_keypoints(maps, rois):
             y_int = (pos - x_int) // w
             assert (roi_map_probs[k, y_int, x_int] ==
                     roi_map_probs[k, :, :].max())
-            x = (x_int + 0.5) * width_correction
-            y = (y_int + 0.5) * height_correction
+            x = (x_int*float(roi_map_width/w) + 0.5) * width_correction
+            y = (y_int*float(roi_map_height/w) + 0.5) * height_correction
             xy_preds[i, 0, k] = x + offset_x[i]
             xy_preds[i, 1, k] = y + offset_y[i]
             xy_preds[i, 2, k] = roi_map[k, y_int, x_int]
