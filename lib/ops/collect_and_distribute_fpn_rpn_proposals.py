@@ -25,7 +25,7 @@ from datasets import json_dataset
 import modeling.FPN as fpn
 import roi_data.fast_rcnn
 import utils.blob as blob_utils
-
+import utils.boxes as box_utils
 
 class CollectAndDistributeFpnRpnProposalsOp(object):
     def __init__(self, train):
@@ -68,7 +68,9 @@ class CollectAndDistributeFpnRpnProposalsOp(object):
 
 def collect(inputs, is_training):
     cfg_key = 'TRAIN' if is_training else 'TEST'
+    pre_nms_topN = cfg[cfg_key].RPN_PRE_NMS_TOP_N
     post_nms_topN = cfg[cfg_key].RPN_POST_NMS_TOP_N
+    nms_thresh = cfg[cfg_key].RPN_NMS_THRESH
     k_max = cfg.FPN.RPN_MAX_LEVEL
     k_min = cfg.FPN.RPN_MIN_LEVEL
     num_lvls = k_max - k_min + 1
@@ -81,8 +83,31 @@ def collect(inputs, is_training):
     # Combine predictions across all levels and retain the top scoring
     rois = np.concatenate([blob.data for blob in roi_inputs])
     scores = np.concatenate([blob.data for blob in score_inputs]).squeeze()
-    inds = np.argsort(-scores)[:post_nms_topN]
-    rois = rois[inds, :]
+    if 0:
+        inds = np.argsort(-scores)[:post_nms_topN]
+        rois = rois[inds, :]
+    else:
+        if pre_nms_topN <= 0 or pre_nms_topN >= len(scores):
+            order = np.argsort(-scores.squeeze())
+        else:
+            # Avoid sorting possibly large arrays; First partition to get top K
+            # unsorted and then sort just those (~20x faster for 200k scores)
+            inds = np.argpartition(
+                -scores.squeeze(), pre_nms_topN
+            )[:pre_nms_topN]
+            order = np.argsort(-scores[inds].squeeze())
+            order = inds[order]
+        proposals = rois[order, 1:]
+        scores = scores[order].reshape((-1, 1))
+        ids = rois[order, 0].reshape((-1, 1))
+        if nms_thresh > 0:
+            keep = box_utils.nms(np.hstack((proposals, scores)), nms_thresh)
+            if post_nms_topN > 0:
+                keep = keep[:post_nms_topN]
+            proposals = proposals[keep, :]
+            scores = scores[keep]
+            ids = ids[keep]
+        rois = np.hstack((ids, proposals))
     return rois
 
 

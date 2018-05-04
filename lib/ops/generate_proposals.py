@@ -129,19 +129,20 @@ class GenerateProposalsOp(object):
 
         # 4. sort all (proposal, score) pairs by score from highest to lowest
         # 5. take top pre_nms_topN (e.g. 6000)
-        if pre_nms_topN <= 0 or pre_nms_topN >= len(scores):
-            order = np.argsort(-scores.squeeze())
-        else:
-            # Avoid sorting possibly large arrays; First partition to get top K
-            # unsorted and then sort just those (~20x faster for 200k scores)
-            inds = np.argpartition(
-                -scores.squeeze(), pre_nms_topN
-            )[:pre_nms_topN]
-            order = np.argsort(-scores[inds].squeeze())
-            order = inds[order]
-        bbox_deltas = bbox_deltas[order, :]
-        all_anchors = all_anchors[order, :]
-        scores = scores[order]
+	if 0:
+            if pre_nms_topN <= 0 or pre_nms_topN >= len(scores):
+                order = np.argsort(-scores.squeeze())
+            else:
+                # Avoid sorting possibly large arrays; First partition to get top K
+                # unsorted and then sort just those (~20x faster for 200k scores)
+                inds = np.argpartition(
+                    -scores.squeeze(), pre_nms_topN
+                )[:pre_nms_topN]
+                order = np.argsort(-scores[inds].squeeze())
+                order = inds[order]
+            bbox_deltas = bbox_deltas[order, :]
+            all_anchors = all_anchors[order, :]
+            scores = scores[order]
 
         # Transform anchors into proposals via bbox transformations
         proposals = box_utils.bbox_transform(
@@ -156,15 +157,18 @@ class GenerateProposalsOp(object):
         proposals = proposals[keep, :]
         scores = scores[keep]
 
+	#print(proposals.shape, scores.shape)
+
         # 6. apply loose nms (e.g. threshold = 0.7)
         # 7. take after_nms_topN (e.g. 300)
         # 8. return the top proposals (-> RoIs top)
-        if nms_thresh > 0:
-            keep = box_utils.nms(np.hstack((proposals, scores)), nms_thresh)
-            if post_nms_topN > 0:
-                keep = keep[:post_nms_topN]
-            proposals = proposals[keep, :]
-            scores = scores[keep]
+	if 0:
+            if nms_thresh > 0:
+                keep = box_utils.nms(np.hstack((proposals, scores)), nms_thresh)
+                if post_nms_topN > 0:
+                    keep = keep[:post_nms_topN]
+                proposals = proposals[keep, :]
+                scores = scores[keep]
         return proposals, scores
 
 
